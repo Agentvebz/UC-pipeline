@@ -1,0 +1,30 @@
+# UC Performance Analysis — Dependencies
+
+# Core data processing
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0           # Parquet read/write
+
+# Config
+pyyaml>=6.0
+
+# SharePoint / Graph API
+requests>=2.31
+requests-ntlm>=1.2      # Windows auth for SharePoint on-prem
+
+# S3 data lake (Parquet)
+boto3>=1.34
+s3fs>=2024.2             # PyArrow S3 filesystem for reading Parquet from S3
+
+# Report generation
+python-pptx>=0.6.23      # PPTX report output
+
+# Web UI
+streamlit>=1.32           # Team-facing frontend
+python-dateutil>=2.9      # Date range calculations
+
+# --- Future phases (uncomment when needed) ---
+# scipy>=1.12            # Anomaly detection (z-scores)
+# weasyprint>=62.0       # PDF report rendering
+# plotly>=5.18           # Chart generation
+# apscheduler>=3.10      # Monthly scheduling

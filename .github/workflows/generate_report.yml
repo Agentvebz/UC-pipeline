@@ -1,0 +1,106 @@
+name: Generate UC Performance Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      country:
+        description: 'Country code (GB, DE, FR, ES, IT, PL, or ALL)'
+        required: true
+        default: 'GB'
+        type: choice
+        options:
+          - ALL
+          - GB
+          - DE
+          - FR
+          - ES
+          - IT
+          - PL
+      start_date:
+        description: 'Start date (YYYY-MM-DD)'
+        required: true
+        default: '2025-01-01'
+      end_date:
+        description: 'End date (YYYY-MM-DD)'
+        required: true
+        default: '2025-12-31'
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install python-pptx pyyaml pyarrow boto3 pandas openpyxl
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Verify AWS access
+        run: |
+          aws sts get-caller-identity
+          echo "AWS authenticated via OIDC"
+
+      - name: Update config for this run
+        run: |
+          python3 -c "
+          import yaml
+          with open('config/config.yaml') as f:
+              cfg = yaml.safe_load(f)
+          cfg['s3_parquet']['start_date'] = '${{ inputs.start_date }}'
+          cfg['s3_parquet']['end_date'] = '${{ inputs.end_date }}'
+          cfg['s3_parquet']['profile'] = None
+          with open('config/config.yaml', 'w') as f:
+              yaml.dump(cfg, f, default_flow_style=False)
+          print('Config updated: ${{ inputs.country }} | ${{ inputs.start_date }} to ${{ inputs.end_date }}')
+          "
+
+      - name: Generate report
+        run: |
+          if [ "${{ inputs.country }}" = "ALL" ]; then
+            python3 -m src.analysis --source s3_parquet
+          else
+            python3 -m src.analysis --source s3_parquet --country ${{ inputs.country }}
+          fi
+
+      - name: Upload PPTX report
+        uses: actions/upload-artifact@v4
+        with:
+          name: UC-Report-${{ inputs.country }}-${{ inputs.start_date }}-to-${{ inputs.end_date }}
+          path: data/processed/**/performance_report*.pptx
+          retention-days: 30
+
+      - name: Upload CSV data
+        uses: actions/upload-artifact@v4
+        with:
+          name: UC-Data-${{ inputs.country }}-${{ inputs.start_date }}-to-${{ inputs.end_date }}
+          path: data/processed/**/*.csv
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## Report Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Country:** ${{ inputs.country }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Period:** ${{ inputs.start_date }} to ${{ inputs.end_date }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the PPTX from the **Artifacts** section below." >> $GITHUB_STEP_SUMMARY

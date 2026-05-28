@@ -1,0 +1,27 @@
+# Generated data (created at runtime)
+data/
+*.parquet
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local/SageMaker only files (not needed for GitHub Actions)
+app.py
+deploy_sagemaker.sh
+deploy_ec2.sh
+README_SAGEMAKER.md
+generate_test_data.py
+generate_all_reports.sh
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets (never commit)
+*.pem
+.env

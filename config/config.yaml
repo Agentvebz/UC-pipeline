@@ -1,0 +1,116 @@
+# ============================================================================
+# UC Performance Pipeline — Configuration
+# ============================================================================
+
+# --- Data Source Selection ---
+# Options: "s3_parquet", "sharepoint_onprem", "sharepoint", "s3", "local"
+data_source: "s3_parquet"
+
+# --- S3 Parquet (Lilly Data Lake — recommended) ---
+s3_parquet:
+  bucket: "aws-a0188-use1-00-s-s3b-data-lake-lilly-0071a-pdb01"
+  prefix: "LLY_03/03_OUTPUT_FILES/NBA_REPORTING_EXTRACT"
+  region: "us-east-1"
+  profile: "lilly"                # AWS SSO profile — no manual token pasting needed
+  start_date: "2025-01-01"    # Q1 2025
+  end_date: "2025-03-31"      # Q1 2025
+
+# --- SharePoint On-Premises (Lilly collab.lilly.com) ---
+sharepoint_onprem:
+  site_url: "https://collab.lilly.com/sites/IBUNBANBE-workingspace"
+  folder_path: "01-Phase 1/IBU ZCE Operations/ZCE Output Files/Commercial/M5"
+  file_pattern: "LLY3_REPORTING_EXTRACT_*.txt"
+  username: ""     # Leave empty = uses your Windows login automatically
+  password: ""     # Leave empty = uses your Windows login automatically
+
+# --- SharePoint Online Settings (Microsoft Graph API) ---
+sharepoint:
+  tenant_id: "${AZURE_TENANT_ID}"
+  client_id: "${AZURE_CLIENT_ID}"
+  client_secret: "${AZURE_CLIENT_SECRET}"
+  site_name: "IBUAnalytics"
+  drive_name: "Documents"
+  folder_path: "NBA_UC_Extracts/Monthly"
+  file_pattern: "LLY3_REPORTING_EXTRACT_*.txt"
+
+# --- S3 Settings (Fallback / Production) ---
+s3:
+  bucket: "lilly-ibu-nba-extracts"
+  prefix: "reporting/monthly/"
+  region: "us-east-1"
+  file_pattern: "LLY3_REPORTING_EXTRACT_*.txt"
+
+# --- Local Settings (Development / Testing) ---
+local:
+  folder: "./data/raw"
+  file_pattern: "LLY3_REPORTING_EXTRACT_*.txt"
+
+# --- File Format (matches your real extracts) ---
+file_format:
+  separator: "|"
+  encoding: "latin-1"
+  quotechar: '"'
+  on_bad_lines: "skip"
+
+# --- Column Names ---
+columns:
+  guid: "guid"                                # Used for dedup (NOT suggestion_external_id_vod__c)
+  date_cols:
+    - "sugg_posted_date"
+    - "sugg_expiry_date"
+    - "dismissal_date"
+    - "response_date"
+    - "sugg_completion_date"
+  strip_cols:
+    - "record_type_name_vod__c"
+    - "suggestion_external_id_vod__c"
+  flag_cols:
+    - "adopted_vod__c"
+    - "actioned_vod__c"
+    - "dismissed_vod__c"
+    - "marked_as_complete_vod__c"
+
+# --- Suggestion Type Mapping ---
+suggestion_map:
+  source_file: "sugg_map.csv"
+  left_key: "metric_group_sk"
+  right_key: "metric_sk"
+  actionable_types:
+    - "Schedule a Call"
+    - "Send a VAE"
+
+# --- Countries ---
+countries:
+  - code: "FR"
+    name: "France"
+  - code: "GB"
+    name: "United Kingdom"
+  - code: "ES"
+    name: "Spain"
+  - code: "DE"
+    name: "Germany"
+  - code: "IT"
+    name: "Italy"
+  - code: "PL"
+    name: "Poland"
+
+# --- Output Paths ---
+output:
+  processed_dir: "./data/processed"
+  staging_dir: "./data/staging"
+  parquet_file: "actionable_suggestions.parquet"
+  csv_backup: "actionable_suggestions.csv"
+  template_pptx: "IBU_template.pptx"    # Lilly branded PPTX template (place in project root)
+
+# --- Logging ---
+logging:
+  level: "INFO"
+  format: "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+
+# --- Cortex API (Phase 5 — LLM-powered reports) ---
+# Set api_key to your Cortex API key to activate LLM mode.
+# Leave as "PENDING" to use template-based reports.
+cortex:
+  api_key: "PENDING"
+  endpoint: "https://cortex-api.lilly.com/v1/messages"
+  model: "claude-sonnet-4-20250514"
