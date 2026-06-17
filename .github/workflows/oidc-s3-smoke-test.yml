@@ -1,0 +1,74 @@
+name: oidc-s3-smoke-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      role_arn:
+        description: "IAM role ARN to assume"
+        required: true
+        default: "arn:aws:iam::863029033211:role/aws-a0188-glbl-00-s-rol-lilly-data-lake-s302"
+      aws_region:
+        description: "AWS region"
+        required: true
+        default: "us-east-1"
+      bucket:
+        description: "S3 bucket name (no s3:// prefix)"
+        required: true
+        default: "aws-a0188-use1-00-s-s3b-data-lake-lilly-0071a-pdb01"
+      prefix:
+        description: "S3 prefix/folder to read parquet from (e.g. path/to/data/)"
+        required: false
+        default: ""
+
+permissions:
+  id-token: write      # REQUIRED: lets the runner mint the GitHub OIDC token
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role_arn }}
+          aws-region: ${{ inputs.aws_region }}
+          role-session-name: gha-oidc-smoke-test
+
+      - name: Checkpoint 1 - prove the role was assumed (trust + sub OK)
+        run: aws sts get-caller-identity
+
+      - name: Checkpoint 2 - prove S3 list permission
+        run: |
+          if [ -n "${{ inputs.prefix }}" ]; then
+            aws s3 ls "s3://${{ inputs.bucket }}/${{ inputs.prefix }}" | head -n 20
+          else
+            aws s3 ls "s3://${{ inputs.bucket }}/" | head -n 20
+          fi
+
+      - name: Checkpoint 2b - discover folder layout (so the prefix can be found)
+        run: |
+          echo "== Top-level folders under the bucket =="
+          aws s3 ls "s3://${{ inputs.bucket }}/" | head -n 50
+          if [ -n "${{ inputs.prefix }}" ]; then
+            echo "== One level under the given prefix =="
+            aws s3 ls "s3://${{ inputs.bucket }}/${{ inputs.prefix }}" | head -n 50
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Checkpoint 3 - read one parquet end-to-end
+        env:
+          SMOKE_BUCKET: ${{ inputs.bucket }}
+          SMOKE_PREFIX: ${{ inputs.prefix }}
+          AWS_DEFAULT_REGION: ${{ inputs.aws_region }}
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet boto3 pandas pyarrow s3fs
+          python scripts/oidc_s3_smoke_test.py
