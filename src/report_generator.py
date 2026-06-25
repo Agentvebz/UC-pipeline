@@ -862,7 +862,7 @@ def _slide_usecase_heatmap(prs, kpi_results, slide_num="6"):
     _set_cell(lt.cell(0, 2), "High Acceptance\n(71% - 100%)", 8, color=WHITE, fill=GREEN_HIGH)
 
 
-def _slide_usecase_performance(prs, kpi_results, start_slide_num=7):
+def _slide_usecase_performance(prs, kpi_results, config=None, start_slide_num=7):
     """Slides 7+: Use Case per brand — matching reference layout exactly."""
     by_bu = kpi_results.get("by_brand_usecase", pd.DataFrame())
     if by_bu.empty:
@@ -1022,18 +1022,25 @@ def _slide_usecase_performance(prs, kpi_results, start_slide_num=7):
                 p.alignment = PP_ALIGN.CENTER
 
             # --- Key Callouts table ---
-            callouts = []
+            callouts = []          # (use case, metric detail) -> column 0
+            callout_rows = []      # parallel per-row context for Cortex enrichment
             for _, row in chunk.iterrows():
                 uc = str(row["sugg_name"])
                 acc_v = float(row.get("acceptance_rate_total", 0))
                 dis_v = float(row.get("dismissal_rate_total", 0))
                 noa_v = float(row.get("no_action_rate", 0))
+                total_v = int(row.get("total_suggestions", 0))
+                ctx = {"acceptance_rate": round(acc_v, 3), "dismissal_rate": round(dis_v, 3),
+                       "no_action_rate": round(noa_v, 3), "total_suggestions": total_v}
                 if acc_v < 0.50:
                     callouts.append((uc, f"{_fp(acc_v)} (Acceptance Rate)"))
+                    callout_rows.append({"use_case": uc, "metric": "acceptance rate", **ctx})
                 if dis_v > 0.20:
                     callouts.append((uc, f"{_fp(dis_v)} (Dismissal Rate)"))
+                    callout_rows.append({"use_case": uc, "metric": "dismissal rate", **ctx})
                 if noa_v > 0.20:
                     callouts.append((uc, f"{_fp(noa_v)} (No Action Rate)"))
+                    callout_rows.append({"use_case": uc, "metric": "no action rate", **ctx})
 
             callout_y = 5.0
             _add_text(slide, 0.67, callout_y - 0.22, 12, 0.2,
@@ -1042,6 +1049,25 @@ def _slide_usecase_performance(prs, kpi_results, start_slide_num=7):
 
             if callouts:
                 n_co = min(len(callouts), 6)
+
+                # --- Optional: Cortex-generated "Potential Reasons" (column 1) ---
+                # Off unless config["cortex"]["enabled"] is true, so the synthetic /
+                # no-creds CI run is unaffected. One batched call per slide.
+                reasons = ["" for _ in range(n_co)]
+                cortex_cfg = (config or {}).get("cortex", {})
+                if cortex_cfg.get("enabled", False) and n_co > 0:
+                    try:
+                        try:
+                            from cortex_callouts import generate_callout_reasons
+                        except ImportError:
+                            from src.cortex_callouts import generate_callout_reasons
+                        reasons = generate_callout_reasons(brand, callout_rows[:n_co])
+                    except Exception as e:
+                        logger.error(f"Cortex callout enrichment failed for {brand}: {e}")
+                        if cortex_cfg.get("fail_on_error", False):
+                            raise
+                        # else: leave reasons blank — the deck is still valid without them
+
                 co_row_h = min(0.25, (6.3 - callout_y) / (n_co + 1))
                 co_tbl = slide.shapes.add_table(n_co + 1, 2,
                     Inches(0.67), Inches(callout_y), Inches(12.0), Inches(co_row_h * (n_co + 1)))
@@ -1056,7 +1082,8 @@ def _slide_usecase_performance(prs, kpi_results, start_slide_num=7):
                     uc, detail = callouts[ci]
                     _set_cell(ct.cell(ci + 1, 0), f"{uc} \u2014 {detail}", 7,
                               fill=WHITE, align=PP_ALIGN.LEFT)
-                    _set_cell(ct.cell(ci + 1, 1), "", 7, fill=WHITE, align=PP_ALIGN.LEFT)
+                    _set_cell(ct.cell(ci + 1, 1), reasons[ci] if ci < len(reasons) else "", 7,
+                              fill=WHITE, align=PP_ALIGN.LEFT)
             else:
                 _add_text(slide, 0.67, callout_y, 12, 0.25,
                           "All use cases performing within threshold.", 8, color=GREEN_FILL)
@@ -1324,7 +1351,7 @@ def run_report_generator(
     _slide_kpi_performance(prs, kpi_results, "4")
     _slide_product_detail(prs, kpi_results, "5")
     _slide_usecase_heatmap(prs, kpi_results, "6")
-    next_num = _slide_usecase_performance(prs, kpi_results, start_slide_num=7)
+    next_num = _slide_usecase_performance(prs, kpi_results, config, start_slide_num=7)
     _slide_anomalies(prs, anomalies_df, str(next_num))
     _slide_appendix_cover(prs)
     _slide_appendix_content(prs, config, str(next_num + 2))

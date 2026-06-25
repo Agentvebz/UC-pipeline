@@ -25,3 +25,9 @@ Thumbs.db
 # Secrets (never commit)
 *.pem
 .env
+
+# Drafted emails — contain real addresses + figures
+outbox/
+
+# NBE Lead contact list — real colleague emails (PII)
+config/country_owners.csv
