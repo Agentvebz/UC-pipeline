@@ -107,10 +107,10 @@ logging:
   level: "INFO"
   format: "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
 
-# --- Cortex API (Phase 5 — LLM-powered reports) ---
-# Set api_key to your Cortex API key to activate LLM mode.
-# Leave as "PENDING" to use template-based reports.
-cortex:
-  api_key: "PENDING"
-  endpoint: "https://cortex-api.lilly.com/v1/messages"
-  model: "claude-sonnet-4-20250514"
+# # --- Cortex API (Phase 5 — LLM-powered reports) ---
+# # Set api_key to your Cortex API key to activate LLM mode.
+# # Leave as "PENDING" to use template-based reports.
+# cortex:
+#   api_key: "PENDING"
+#   endpoint: "https://cortex-api.lilly.com/v1/messages"
+#   model: "claude-sonnet-4-20250514"
